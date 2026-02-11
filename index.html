@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Побег географа: Новогодний переполох</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a2a3a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background-color: #f8f9fa;
+            box-shadow: 0 0 30px rgba(0,0,0,0.6);
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            color: #2c3e50;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            text-shadow: 1px 1px 0px rgba(255,255,255,0.7);
+            z-index: 5;
+        }
+        .menu-overlay {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            z-index: 100;
+            max-width: 90%;
+            width: 450px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .btn {
+            background: #c0392b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #962d22;
+            width: 100%;
+        }
+        .btn:hover { background: #e74c3c; transform: translateY(-2px); }
+        .btn:active { transform: translateY(2px); box-shadow: none; }
+        .btn-secondary { background: #34495e; box-shadow: 0 4px 0 #2c3e50; }
+        .btn-secondary:hover { background: #45627d; }
+
+        .input-field {
+            padding: 12px;
+            border: 2px solid #dcdde1;
+            border-radius: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-field:focus { border-color: #c0392b; }
+
+        .hidden { display: none !important; }
+        
+        .progress-bar-bg {
+            width: 200px;
+            height: 14px;
+            background: #dcdde1;
+            border-radius: 7px;
+            margin-top: 5px;
+            overflow: hidden;
+            border: 2px solid #2c3e50;
+        }
+        #progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #c0392b, #e74c3c);
+            transition: width 0.3s ease-out;
+        }
+        #level-up-announcement {
+            position: absolute;
+            font-size: 3rem;
+            font-weight: 900;
+            color: #27ae60;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.5s;
+            z-index: 20;
+            text-shadow: 2px 2px 0px white;
+            text-align: center;
+        }
+
+        .results-list {
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            margin-top: 10px;
+        }
+        .result-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #active-effects {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            pointer-events: none;
+        }
+        .effect-tag {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            animation: pulse 1s infinite alternate;
+        }
+        @keyframes pulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="level-up-announcement">НОВЫЙ ГОД БЛИЗКО!</div>
+
+    <div id="active-effects"></div>
+    
+    <!-- UI during game -->
+    <div id="ui-overlay" class="hidden">
+        <div>
+            <div class="text-xl font-bold" id="level-title">Уровень: <span id="level-val">1</span></div>
+            <div class="text-sm font-semibold" id="score-container">Тетради: <span id="score">0</span> / 20</div>
+            <div class="progress-bar-bg"><div id="progress-fill"></div></div>
+            <div class="mt-2 font-bold text-red-700">Очки: <span id="total-points">0</span></div>
+            <div class="text-xs text-gray-600">Игрок: <span id="ui-nickname">Географ</span></div>
+        </div>
+        <div class="text-right">
+            <div id="ability-status" class="font-bold text-blue-600">ГЛОБУС: ГОТОВ</div>
+            <div id="ult-status" class="font-bold text-purple-600">УЛЬТА [E]: ГОТОВА</div>
+        </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="menu-overlay">
+        <h1 class="text-4xl font-extrabold text-red-700">🎄 Побег географа</h1>
+        <p class="text-gray-600">Неделя до Нового года. Толпы учеников несут свои тетради, чтобы исправить двойки. Не попадитесь!</p>
+        
+        <input type="text" id="nickname-input" class="input-field" placeholder="Введите ваш ник..." maxlength="12">
+        
+        <button id="start-btn" class="btn">Начать забег</button>
+        <button id="controls-btn" class="btn btn-secondary">Управление</button>
+        <button id="results-btn" class="btn btn-secondary">Результаты</button>
+    </div>
+
+    <!-- Controls Menu -->
+    <div id="controls-menu" class="menu-overlay hidden">
+        <h2 class="text-2xl font-bold text-gray-800">Клавиши управления</h2>
+        <div class="text-left space-y-2 my-4 text-gray-700">
+            <p><b>Стрелки:</b> Передвижение учителя</p>
+            <p><b>WASD:</b> Выбор направления броска</p>
+            <p><b>Пробел:</b> Бросить глобус</p>
+            <p><b>Клавиша E:</b> Ульта (глобусы во все стороны)</p>
+            <hr>
+            <p>🎁 <b>Бонусы:</b> Выпадают из учеников (макс. 3 за уровень)</p>
+        </div>
+        <button id="back-to-main-from-ctrl" class="btn">Назад</button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="results-menu" class="menu-overlay hidden">
+        <h2 class="text-2xl font-bold text-gray-800">Лучшие результаты</h2>
+        <div id="results-container" class="results-list"></div>
+        <button id="back-to-main-from-res" class="btn mt-4">Назад</button>
+    </div>
+
+    <!-- Game Over Menu -->
+    <div id="game-over-menu" class="menu-overlay hidden">
+        <h2 class="text-3xl font-bold text-red-600">Вас завалили тетрадями!</h2>
+        <div class="my-4 text-xl">
+            Результат <span id="player-name-final"></span>: <span id="final-points" class="font-bold">0</span>
+        </div>
+        <button id="retry-btn" class="btn">Попробовать снова</button>
+        <button id="to-menu-btn" class="btn btn-secondary">В главное меню</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI elements
+    const uiOverlay = document.getElementById('ui-overlay');
+    const mainMenu = document.getElementById('main-menu');
+    const controlsMenu = document.getElementById('controls-menu');
+    const resultsMenu = document.getElementById('results-menu');
+    const gameOverMenu = document.getElementById('game-over-menu');
+    const nicknameInput = document.getElementById('nickname-input');
+    const effectsContainer = document.getElementById('active-effects');
+    
+    const scoreElement = document.getElementById('score');
+    const levelElement = document.getElementById('level-val');
+    const pointsElement = document.getElementById('total-points');
+    const progressFill = document.getElementById('progress-fill');
+    const levelAnnounce = document.getElementById('level-up-announcement');
+    const scoreContainer = document.getElementById('score-container');
+    const levelTitle = document.getElementById('level-title');
+
+    // New Sound Handling
+    const hitSound = new Audio('https://docs.google.com/uc?export=download&id=1zPnsH1rJjlCrZpmEwFF6RhV_gc5cDoGk');
+    
+    function playHitSound() {
+        // Клонируем аудио для возможности наложения звуков при частых попаданиях
+        const soundClone = hitSound.cloneNode();
+        soundClone.volume = 0.4;
+        soundClone.play().catch(e => console.log("Audio play blocked until interaction"));
+    }
+
+    // Asset loading
+    const assets = {
+        player: new Image(),
+        desk: new Image(),
+        chair: new Image(),
+        studentNormal: new Image(),
+        studentSpecial: new Image(),
+        globe: new Image(),
+        itemRefresher: new Image(),
+        itemSlowmo: new Image(),
+        itemInvul: new Image()
+    };
+    
+    // External links
+    assets.desk.src = 'https://lh3.googleusercontent.com/d/1m1H29EOa18gBt4fEII8v7gwlTk4Mq7vN';
+    assets.chair.src = 'https://lh3.googleusercontent.com/d/1IIHjAqr9AviGZnjCwm8uGftpKCU1yqI7';
+    assets.studentNormal.src = 'https://lh3.googleusercontent.com/d/1ZQDyHwJYW58rZyX4L9xUD-qst0Iwpdji';
+    assets.studentSpecial.src = 'https://lh3.googleusercontent.com/d/1qG1QSbN80b6hAN-SaK2VS4O7A0ViiNeT';
+    assets.player.src = 'https://lh3.googleusercontent.com/d/1wJyZvi56hMt5ApisuR7tScZmx1PItlML';
+    assets.globe.src = 'https://lh3.googleusercontent.com/d/1Y3Wdy4VXGAnii5zjP9t8hW79nDa5KqWr';
+    assets.itemRefresher.src = 'https://lh3.googleusercontent.com/d/1YEw5uboEToPQI2pIAHW7f-BrNn5HAy5h';
+    assets.itemSlowmo.src = 'https://lh3.googleusercontent.com/d/100g9b5dpyxzemEG6xsdwY_CIp5nozZvO';
+    assets.itemInvul.src = 'https://lh3.googleusercontent.com/d/1zZBCGWhpjIKzqqiQBjUkyCd_eqSj9JU9';
+
+    let gameActive = false;
+    let currentLevel = 1;
+    let progressThisLevel = 0;
+    let totalPoints = 0;
+    let currentPlayerName = "Географ";
+    let itemsDroppedThisLevel = 0;
+    const TARGET_PER_LEVEL = 20;
+    
+    const config = {
+        playerSpeed: 5.2,
+        baseStudentSpeed: 2.1,
+        baseSpawnRate: 1700,
+        minSpawnRate: 400,
+        abilityCooldown: 1000,
+        projectileSpeed: 11,
+        stunDuration: 500,
+        bossHP: 10,
+        bossShotCount: 8,
+        bossShotInterval: 3000,
+        itemDropChance: 0.15 
+    };
+
+    const player = {
+        x: 0,
+        y: 0,
+        radius: 25,
+        lastAbilityTime: 0,
+        ultAvailable: true,
+        stunUntil: 0,
+        invulnerableUntil: 0,
+        slowMoUntil: 0
+    };
+
+    let enemies = [];
+    let projectiles = [];
+    let enemyProjectiles = [];
+    let obstacles = [];
+    let items = [];
+    let animationId;
+    let lastSpawnTime = 0;
+    let spawnTimer = config.baseSpawnRate;
+    let specialEnemyActive = false;
+    const keys = {};
+
+    let highScores = JSON.parse(localStorage.getItem('geography_scores') || '[]');
+
+    function saveScore(points, name) {
+        const entry = { points, name, date: new Date().toLocaleDateString() };
+        highScores.push(entry);
+        highScores.sort((a, b) => b.points - a.points);
+        highScores = highScores.slice(0, 10);
+        localStorage.setItem('geography_scores', JSON.stringify(highScores));
+    }
+
+    function showResults() {
+        const container = document.getElementById('results-container');
+        container.innerHTML = '';
+        if (highScores.length === 0) {
+            container.innerHTML = '<p class="text-center text-gray-500 py-4">Пока нет рекордов</p>';
+        } else {
+            highScores.forEach((s, i) => {
+                container.innerHTML += `
+                    <div class="result-item">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-gray-800">${i + 1}. ${s.name || 'Аноним'}</span>
+                            <span class="text-xs text-gray-400">${s.date}</span>
+                        </div>
+                        <span class="font-bold text-red-700">${s.points}</span>
+                    </div>`;
+            });
+        }
+    }
+
+    function resize() {
+        canvas.width = window.innerWidth > 800 ? 800 : window.innerWidth;
+        canvas.height = window.innerHeight > 600 ? 600 : window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function isKeyDown(code, engChar, rusChar) {
+        return keys[code] || keys[engChar] || keys[rusChar];
+    }
+
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true; 
+        if (e.key) keys[e.key.toLowerCase()] = true;
+        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+        
+        if (gameActive) {
+            if (e.code === 'Space' || e.key === ' ') fireGlobe();
+            if (e.code === 'KeyE' || e.key?.toLowerCase() === 'e' || e.key?.toLowerCase() === 'у') useUltimate();
+        }
+    });
+
+    window.addEventListener('keyup', e => {
+        keys[e.code] = false; 
+        if (e.key) keys[e.key.toLowerCase()] = false;
+    });
+
+    class Item {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.radius = 20;
+            this.active = true;
+            this.birth = Date.now();
+            this.duration = 10000; 
+            
+            const rand = Math.random();
+            if (rand < 0.33) {
+                this.type = 'slowmo';
+                this.img = assets.itemSlowmo;
+                this.name = 'ЗАМЕДЛЕНИЕ';
+            } else if (rand < 0.66) {
+                this.type = 'refresher';
+                this.img = assets.itemRefresher;
+                this.name = 'РЕФРЕШЕР';
+            } else {
+                this.type = 'invul';
+                this.img = assets.itemInvul;
+                this.name = 'НЕУЯЗВИМОСТЬ';
+            }
+        }
+        update() {
+            if (Date.now() - this.birth > this.duration) this.active = false;
+            if (Math.hypot(player.x - this.x, player.y - this.y) < player.radius + this.radius) {
+                this.apply();
+                this.active = false;
+            }
+        }
+        apply() {
+            const now = Date.now();
+            if (this.type === 'slowmo') {
+                player.slowMoUntil = now + 5000;
+                announceEffect("ВРЕМЯ ЗАМЕДЛЕНО!");
+            } else if (this.type === 'refresher') {
+                player.ultAvailable = true;
+                announceEffect("УЛЬТА ВОССТАНОВЛЕНА!");
+            } else if (this.type === 'invul') {
+                player.invulnerableUntil = now + 8000;
+                announceEffect("НЕУЯЗВИМОСТЬ!");
+            }
+        }
+        draw() {
+            ctx.save();
+            const bounce = Math.sin(Date.now() / 200) * 5;
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(this.x, this.y + 22, 16, 7, 0, 0, Math.PI*2);
+            ctx.fill();
+            
+            if (this.img.complete && this.img.naturalWidth !== 0) {
+                ctx.drawImage(this.img, this.x - this.radius, this.y - this.radius + bounce, this.radius * 2, this.radius * 2);
+            }
+            ctx.restore();
+        }
+    }
+
+    function announceEffect(txt) {
+        const div = document.createElement('div');
+        div.className = 'effect-tag';
+        div.innerText = txt;
+        effectsContainer.appendChild(div);
+        setTimeout(() => div.remove(), 2000);
+    }
+
+    class Obstacle {
+        constructor() {
+            let valid = false;
+            while (!valid) {
+                this.x = Math.random() * (canvas.width - 100) + 50;
+                this.y = Math.random() * (canvas.height - 100) + 50;
+                this.radius = 26;
+                this.type = Math.random() > 0.5 ? 'desk' : 'chair';
+                const distToCenter = Math.hypot(this.x - canvas.width/2, this.y - canvas.height/2);
+                if (distToCenter > 130) valid = true;
+            }
+        }
+        draw() {
+            const img = this.type === 'desk' ? assets.desk : assets.chair;
+            if (img.complete && img.naturalWidth !== 0) {
+                ctx.drawImage(img, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+            } else {
+                ctx.fillStyle = this.type === 'desk' ? '#8d6e63' : '#5d4037';
+                ctx.fillRect(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+            }
+        }
+    }
+
+    class Projectile {
+        constructor(x, y, vx, vy, isEnemy = false) {
+            this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+            this.radius = isEnemy ? 10 : 18;
+            this.active = true;
+            this.isEnemy = isEnemy;
+        }
+        update() {
+            this.x += this.vx; this.y += this.vy;
+            if (this.x < -100 || this.x > canvas.width + 100 || this.y < -100 || this.y > canvas.height + 100) this.active = false;
+        }
+        draw() {
+            ctx.save();
+            if (this.isEnemy) {
+                ctx.fillStyle = "white"; 
+                ctx.strokeStyle = "#2c3e50"; 
+                ctx.lineWidth = 2;
+                ctx.fillRect(this.x - 8, this.y - 10, 16, 20);
+                ctx.strokeRect(this.x - 8, this.y - 10, 16, 20);
+                ctx.fillStyle = "#2c3e50"; 
+                ctx.fillRect(this.x - 5, this.y - 5, 10, 2);
+                ctx.fillRect(this.x - 5, this.y + 1, 10, 2);
+            } else {
+                if (assets.globe.complete && assets.globe.naturalWidth !== 0) {
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(Date.now() / 200);
+                    ctx.drawImage(assets.globe, -this.radius, -this.radius, this.radius * 2, this.radius * 2);
+                } else {
+                    ctx.font = '28px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🌍', this.x, this.y);
+                }
+            }
+            ctx.restore();
+        }
+    }
+
+    class Student {
+        constructor(level, isSpecial = false, isBoss = false) {
+            this.isBoss = isBoss;
+            if (isBoss) {
+                this.x = canvas.width / 2;
+                this.y = -60;
+                this.hp = config.bossHP;
+                this.maxHp = config.bossHP;
+                this.radius = 45;
+                this.speed = 1.2;
+                this.lastShotTime = Date.now();
+            } else {
+                const side = Math.floor(Math.random() * 4);
+                if (side === 0) { this.x = -40; this.y = Math.random() * canvas.height; }
+                else if (side === 1) { this.x = canvas.width + 40; this.y = Math.random() * canvas.height; }
+                else if (side === 2) { this.x = Math.random() * canvas.width; this.y = -40; }
+                else { this.x = Math.random() * canvas.width; this.y = canvas.height + 40; }
+                this.radius = 24;
+                this.hp = 1;
+                const baseSpeed = config.baseStudentSpeed + (level * 0.22);
+                this.speed = isSpecial ? baseSpeed * 0.7 : baseSpeed;
+            }
+            this.isSpecial = isSpecial || isBoss;
+            this.active = true; this.knockedOut = false; this.vx = 0; this.vy = 0;
+            this.lastShotTime = Date.now();
+        }
+        update() {
+            if (this.knockedOut) {
+                this.x += this.vx; this.y += this.vy;
+                if (this.x < -150 || this.x > canvas.width + 150 || this.y < -150 || this.y > canvas.height + 150) {
+                    this.active = false; if (this.isSpecial) specialEnemyActive = false;
+                }
+                return;
+            }
+
+            const isSlowed = Date.now() < player.slowMoUntil;
+            const currentSpeed = isSlowed ? this.speed * 0.5 : this.speed;
+            const angle = Math.atan2(player.y - this.y, player.x - this.x);
+            
+            if (this.isBoss) {
+                const dist = Math.hypot(player.x - this.x, player.y - this.y);
+                if (dist > 150) {
+                    this.x += Math.cos(angle) * currentSpeed;
+                    this.y += Math.sin(angle) * currentSpeed;
+                }
+                if (Date.now() - this.lastShotTime > config.bossShotInterval) {
+                    for (let i = 0; i < config.bossShotCount; i++) {
+                        const sAngle = (Math.PI * 2 / config.bossShotCount) * i;
+                        enemyProjectiles.push(new Projectile(this.x, this.y, Math.cos(sAngle)*5.5, Math.sin(sAngle)*5.5, true));
+                    }
+                    this.lastShotTime = Date.now();
+                }
+            } else {
+                this.x += Math.cos(angle) * currentSpeed;
+                this.y += Math.sin(angle) * currentSpeed;
+                if (this.isSpecial && Date.now() - this.lastShotTime > 2500) {
+                    const sAngle = Math.atan2(player.y - this.y, player.x - this.x);
+                    enemyProjectiles.push(new Projectile(this.x, this.y, Math.cos(sAngle)*6.5, Math.sin(sAngle)*6.5, true));
+                    this.lastShotTime = Date.now();
+                }
+            }
+        }
+        draw() {
+            ctx.save();
+            if (this.knockedOut) ctx.globalAlpha = 0.5;
+            const img = this.isSpecial ? assets.studentSpecial : assets.studentNormal;
+            if (img.complete && img.naturalWidth !== 0) {
+                ctx.drawImage(img, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+            } else {
+                ctx.fillStyle = this.isBoss ? '#9c27b0' : (this.isSpecial ? '#ff9800' : '#2196f3');
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill();
+            }
+            if (this.isBoss && !this.knockedOut) {
+                const barW = 80; const barH = 8;
+                ctx.fillStyle = '#ddd'; ctx.fillRect(this.x - barW/2, this.y - this.radius - 15, barW, barH);
+                ctx.fillStyle = '#e74c3c'; ctx.fillRect(this.x - barW/2, this.y - this.radius - 15, barW * (this.hp / this.maxHp), barH);
+            }
+            ctx.restore();
+        }
+    }
+
+    function fireGlobe() {
+        if (Date.now() < player.stunUntil) return;
+        const now = Date.now();
+        if (now - player.lastAbilityTime < config.abilityCooldown) return;
+        let sx = 0, sy = 0;
+        if (isKeyDown('KeyW', 'w', 'ц')) sy -= 1;
+        if (isKeyDown('KeyS', 's', 'ы')) sy += 1;
+        if (isKeyDown('KeyA', 'a', 'ф')) sx -= 1;
+        if (isKeyDown('KeyD', 'd', 'в')) sx += 1;
+        if (sx === 0 && sy === 0) return;
+        player.lastAbilityTime = now;
+        const len = Math.hypot(sx, sy);
+        projectiles.push(new Projectile(player.x, player.y, (sx/len)*config.projectileSpeed, (sy/len)*config.projectileSpeed));
+    }
+
+    function useUltimate() {
+        if (Date.now() < player.stunUntil || !player.ultAvailable) return;
+        player.ultAvailable = false;
+        [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1},{x:1,y:1},{x:1,y:-1},{x:-1,y:1},{x:-1,y:-1}].forEach(d => {
+            const len = Math.hypot(d.x, d.y);
+            projectiles.push(new Projectile(player.x, player.y, (d.x/len)*config.projectileSpeed, (d.y/len)*config.projectileSpeed));
+        });
+    }
+
+    function startNewLevel() {
+        currentLevel++;
+        progressThisLevel = 0;
+        itemsDroppedThisLevel = 0;
+        
+        enemies = []; projectiles = []; enemyProjectiles = []; items = [];
+        specialEnemyActive = false;
+        player.ultAvailable = true; 
+
+        spawnTimer = Math.max(config.minSpawnRate, config.baseSpawnRate - (currentLevel * 160));
+        
+        const isBossLevel = currentLevel % 5 === 0;
+        levelAnnounce.innerText = isBossLevel ? "БОСС: ЛИДЕР КЛАССА" : "НОВЫЙ ГОД БЛИЗКО!";
+        levelAnnounce.style.opacity = "1";
+        setTimeout(() => levelAnnounce.style.opacity = "0", 1800);
+        
+        levelElement.innerText = currentLevel;
+        if (isBossLevel) {
+            levelTitle.innerText = "УРОВЕНЬ БОССА";
+            scoreContainer.innerHTML = 'Здоровье босса: <span id="score">10</span> / 10';
+        } else {
+            levelTitle.innerText = "Уровень: " + currentLevel;
+            scoreContainer.innerHTML = 'Тетради: <span id="score">0</span> / 20';
+        }
+
+        obstacles = [];
+        const count = 5 + Math.floor(currentLevel * 1.2);
+        for(let i = 0; i < Math.min(count, 18); i++) obstacles.push(new Obstacle());
+        
+        if (isBossLevel) {
+            enemies.push(new Student(currentLevel, false, true));
+            specialEnemyActive = true;
+        }
+    }
+
+    function initGame() {
+        cancelAnimationFrame(animationId);
+        
+        currentPlayerName = nicknameInput.value.trim() || "Географ";
+        document.getElementById('ui-nickname').innerText = currentPlayerName;
+
+        currentLevel = 1; progressThisLevel = 0; totalPoints = 0; itemsDroppedThisLevel = 0;
+        enemies = []; projectiles = []; enemyProjectiles = []; items = [];
+        player.x = canvas.width/2; player.y = canvas.height/2;
+        player.lastAbilityTime = 0; player.ultAvailable = true; player.stunUntil = 0;
+        player.invulnerableUntil = 0; player.slowMoUntil = 0;
+        spawnTimer = config.baseSpawnRate; specialEnemyActive = false;
+        
+        levelTitle.innerText = "Уровень: 1";
+        scoreContainer.innerHTML = 'Тетради: <span id="score">0</span> / 20';
+
+        obstacles = [];
+        for(let i = 0; i < 5; i++) obstacles.push(new Obstacle());
+
+        gameActive = true;
+        mainMenu.classList.add('hidden');
+        gameOverMenu.classList.add('hidden');
+        uiOverlay.classList.remove('hidden');
+        
+        pointsElement.innerText = 0;
+        progressFill.style.width = '0%';
+        effectsContainer.innerHTML = '';
+        
+        gameLoop();
+    }
+
+    function endGame() {
+        gameActive = false;
+        uiOverlay.classList.add('hidden');
+        gameOverMenu.classList.remove('hidden');
+        document.getElementById('final-points').innerText = totalPoints;
+        document.getElementById('player-name-final').innerText = currentPlayerName;
+        saveScore(totalPoints, currentPlayerName);
+    }
+
+    function update() {
+        const now = Date.now();
+        const isBossLevel = currentLevel % 5 === 0;
+
+        if (now >= player.stunUntil) {
+            let mx = 0, my = 0;
+            if (isKeyDown('ArrowUp')) my -= 1; if (isKeyDown('ArrowDown')) my += 1;
+            if (isKeyDown('ArrowLeft')) mx -= 1; if (isKeyDown('ArrowRight')) mx += 1;
+            if (mx !== 0 || my !== 0) {
+                const len = Math.hypot(mx, my);
+                player.x += (mx/len)*config.playerSpeed; player.y += (my/len)*config.playerSpeed;
+            }
+        }
+        player.x = Math.max(player.radius, Math.min(canvas.width-player.radius, player.x));
+        player.y = Math.max(player.radius, Math.min(canvas.height-player.radius, player.y));
+        
+        obstacles.forEach(o => {
+            const d = Math.hypot(player.x-o.x, player.y-o.y);
+            if (d < player.radius + o.radius - 5) {
+                const a = Math.atan2(player.y-o.y, player.x-o.x);
+                player.x = o.x + Math.cos(a)*(player.radius+o.radius - 5);
+                player.y = o.y + Math.sin(a)*(player.radius+o.radius - 5);
+            }
+        });
+
+        if (!isBossLevel && now - lastSpawnTime > spawnTimer) {
+            const s = !specialEnemyActive && progressThisLevel >= 5 && Math.random() < 0.25;
+            enemies.push(new Student(currentLevel, s)); if (s) specialEnemyActive = true;
+            lastSpawnTime = now;
+        }
+
+        projectiles.forEach((p, pi) => {
+            p.update(); if (!p.active) { projectiles.splice(pi, 1); return; }
+            enemies.forEach(e => {
+                if (!e.knockedOut && Math.hypot(p.x-e.x, p.y-e.y) < p.radius+e.radius) {
+                    p.active = false;
+                    playHitSound();
+                    
+                    if (e.isBoss) {
+                        e.hp--;
+                        totalPoints += 20;
+                        if (e.hp <= 0) {
+                            e.knockedOut = true; e.vx = p.vx*1.4; e.vy = p.vy*1.4;
+                            totalPoints += 500;
+                            setTimeout(startNewLevel, 1000);
+                        }
+                    } else {
+                        e.knockedOut = true; e.vx = p.vx*1.4; e.vy = p.vy*1.4;
+                        totalPoints += e.isSpecial ? 30 : 15;
+                        progressThisLevel++;
+
+                        if (itemsDroppedThisLevel < 3 && Math.random() < config.itemDropChance) {
+                            items.push(new Item(e.x, e.y));
+                            itemsDroppedThisLevel++;
+                        }
+
+                        if (progressThisLevel >= TARGET_PER_LEVEL) {
+                            totalPoints += 500;
+                            setTimeout(startNewLevel, 500);
+                        }
+                    }
+                    
+                    if (isBossLevel) {
+                        const boss = enemies.find(en => en.isBoss);
+                        const displayHp = boss ? Math.max(0, boss.hp) : 0;
+                        document.getElementById('score').innerText = displayHp;
+                        progressFill.style.width = (displayHp/config.bossHP*100)+'%';
+                    } else {
+                        document.getElementById('score').innerText = progressThisLevel;
+                        progressFill.style.width = (progressThisLevel/TARGET_PER_LEVEL*100)+'%';
+                    }
+                    pointsElement.innerText = totalPoints;
+                }
+            });
+        });
+
+        enemyProjectiles.forEach((ep, epi) => {
+            ep.update(); if (!ep.active) { enemyProjectiles.splice(epi, 1); return; }
+            if (now > player.invulnerableUntil && Math.hypot(ep.x-player.x, ep.y-player.y) < ep.radius+player.radius) {
+                player.stunUntil = now + config.stunDuration; ep.active = false;
+            }
+        });
+
+        enemies.forEach((e, ei) => {
+            e.update(); if (!e.active) { enemies.splice(ei, 1); return; }
+            if (!e.knockedOut && now > player.invulnerableUntil && Math.hypot(player.x-e.x, player.y-e.y) < player.radius+e.radius-8) {
+                endGame();
+            }
+        });
+
+        items.forEach((item, ii) => {
+            item.update();
+            if (!item.active) items.splice(ii, 1);
+        });
+
+        const abilityStatus = document.getElementById('ability-status');
+        const ultStatus = document.getElementById('ult-status');
+        if (now - player.lastAbilityTime < config.abilityCooldown) {
+            abilityStatus.innerText = 'ГЛОБУС: ЗАРЯДКА';
+            abilityStatus.className = 'font-bold text-gray-400';
+        } else {
+            abilityStatus.innerText = 'ГЛОБУС: ГОТОВ';
+            abilityStatus.className = 'font-bold text-blue-600';
+        }
+        if (player.ultAvailable) {
+            ultStatus.innerText = 'УЛЬТА [E]: ГОТОВА';
+            ultStatus.className = 'font-bold text-purple-600';
+        } else {
+            ultStatus.innerText = 'УЛЬТА: ЗАРЯДИТСЯ В СЛЕД. УРОВНЕ';
+            ultStatus.className = 'font-bold text-gray-400 text-sm';
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#d5e6f5'; ctx.lineWidth = 1;
+        for(let i=0;i<canvas.width;i+=50){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke();}
+        for(let i=0;i<canvas.height;i+=50){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(canvas.width,i);ctx.stroke();}
+        
+        obstacles.forEach(o => o.draw());
+        items.forEach(item => item.draw());
+        projectiles.forEach(p => p.draw());
+        enemyProjectiles.forEach(ep => ep.draw());
+        
+        ctx.save(); 
+        const now = Date.now();
+        if (now < player.stunUntil) ctx.globalAlpha = 0.5;
+        if (now < player.invulnerableUntil) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "gold";
+            ctx.globalAlpha = 0.85;
+        }
+        if (assets.player.complete && assets.player.naturalWidth !== 0) {
+            ctx.drawImage(assets.player, player.x-player.radius, player.y-player.radius, player.radius*2, player.radius*2);
+        } else {
+            ctx.fillStyle = '#4caf50';
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+        
+        enemies.forEach(e => e.draw());
+
+        if (now < player.slowMoUntil) {
+            ctx.fillStyle = 'rgba(0, 100, 255, 0.08)';
+            ctx.fillRect(0,0, canvas.width, canvas.height);
+        }
+    }
+
+    function gameLoop() { 
+        if (!gameActive) return; 
+        update(); 
+        draw(); 
+        animationId = requestAnimationFrame(gameLoop); 
+    }
+
+    document.getElementById('start-btn').onclick = initGame;
+    document.getElementById('retry-btn').onclick = initGame;
+    document.getElementById('controls-btn').onclick = () => { mainMenu.classList.add('hidden'); controlsMenu.classList.remove('hidden'); };
+    document.getElementById('results-btn').onclick = () => { mainMenu.classList.add('hidden'); resultsMenu.classList.remove('hidden'); showResults(); };
+    document.getElementById('back-to-main-from-ctrl').onclick = () => { controlsMenu.classList.add('hidden'); mainMenu.classList.remove('hidden'); };
+    document.getElementById('back-to-main-from-res').onclick = () => { resultsMenu.classList.add('hidden'); mainMenu.classList.remove('hidden'); };
+    document.getElementById('to-menu-btn').onclick = () => { gameOverMenu.classList.add('hidden'); mainMenu.classList.remove('hidden'); ctx.clearRect(0, 0, canvas.width, canvas.height); };
+
+    function drawMenuBg() { if (gameActive) return; draw(); requestAnimationFrame(drawMenuBg); }
+    drawMenuBg();
+</script>
+</body>
+</html>
