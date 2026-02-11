@@ -73,6 +73,12 @@
         .btn-secondary { background: #34495e; box-shadow: 0 4px 0 #2c3e50; }
         .btn-secondary:hover { background: #45627d; }
 
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
         .input-field {
             padding: 12px;
             border: 2px solid #dcdde1;
@@ -189,7 +195,7 @@
     <div id="ui-overlay" class="hidden">
         <div>
             <div class="text-xl font-bold" id="level-title">Уровень: <span id="level-val">1</span></div>
-            <div class="text-sm font-semibold" id="score-container">Тетради: <span id="score">0</span> / 20</div>
+            <div class="text-sm font-semibold" id="score-container">Тетради: <span id="score">0</span> / 15</div>
             <div class="progress-bar-bg"><div id="progress-fill"></div></div>
             <div class="mt-2 font-bold text-red-700">Очки: <span id="total-points">0</span></div>
             <div class="text-xs text-gray-600">Игрок: <span id="ui-nickname">Географ</span></div>
@@ -203,14 +209,26 @@
     <!-- Главное меню -->
     <div id="main-menu" class="menu-overlay">
         <h1 class="text-3xl font-extrabold text-red-700">🎄 Побег географа</h1>
-        <p class="text-sm text-gray-600 mb-2">Неделя до Нового года. Толпы учеников несут свои тетради, чтобы исправить двойки. Не попадитесь!</p>
+        <p class="text-sm text-gray-600 mb-2">Неделя до Нового года. Толпы учеников несут свои тетради, чтобы исправить двойки. Используйте глобус, чтобы выжить!</p>
         
         <input type="text" id="nickname-input" class="input-field" placeholder="Введите ваш ник..." maxlength="12">
         
-        <button id="start-btn" class="btn">Начать забег</button>
+        <button id="pre-start-btn" class="btn">Начать игру</button>
         <button id="controls-btn" class="btn btn-secondary">Управление</button>
         <button id="settings-btn" class="btn btn-secondary">Настройки</button>
         <button id="results-btn" class="btn btn-secondary">Результаты</button>
+    </div>
+
+    <!-- Меню Предупреждения (Дисклеймер) -->
+    <div id="disclaimer-menu" class="menu-overlay hidden">
+        <h2 class="text-2xl font-bold text-red-600">ВНИМАНИЕ!</h2>
+        <div class="text-gray-700 text-sm my-2 p-2 bg-gray-100 rounded-lg text-justify">
+            Данная игра носит исключительно развлекательный характер и не преследует целей оскорбить или унизить кого бы то ни было. Всё, что происходит на экране, является вымыслом. Нажимая "Продолжить", Вы подтверждаете наличие у себя чувства юмора.
+        </div>
+        <div class="btn-group">
+            <button id="disclaimer-exit" class="btn btn-secondary" style="width: 40%">Выход</button>
+            <button id="disclaimer-start" class="btn" style="width: 60%">Продолжить</button>
+        </div>
     </div>
 
     <!-- Настройки -->
@@ -234,9 +252,9 @@
             <div>
                 <div class="flex justify-between mb-1">
                     <span class="text-sm font-bold text-gray-600">Музыка (BGM)</span>
-                    <span id="music-val" class="text-sm text-gray-500">10%</span>
+                    <span id="music-val" class="text-sm text-gray-500">20%</span>
                 </div>
-                <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.1">
+                <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.2">
             </div>
         </div>
 
@@ -282,6 +300,7 @@
     // UI Elements
     const uiOverlay = document.getElementById('ui-overlay');
     const mainMenu = document.getElementById('main-menu');
+    const disclaimerMenu = document.getElementById('disclaimer-menu'); // NEW
     const controlsMenu = document.getElementById('controls-menu');
     const settingsMenu = document.getElementById('settings-menu');
     const resultsMenu = document.getElementById('results-menu');
@@ -434,14 +453,16 @@
     let totalPoints = 0;
     let currentPlayerName = "Географ";
     let itemsDroppedThisLevel = 0;
-    const TARGET_PER_LEVEL = 20;
+    
+    // UPDATED: Reduced from 20 to 15
+    const TARGET_PER_LEVEL = 15;
     
     const config = {
         playerSpeed: 5.2,
-        baseStudentSpeed: 2.1,
+        baseStudentSpeed: 2.0,
         baseSpawnRate: 1700,
-        minSpawnRate: 400,
-        abilityCooldown: 1000,
+        minSpawnRate: 700,
+        // abilityCooldown remove here as it is dynamic now
         projectileSpeed: 11,
         stunDuration: 500,
         bossHP: 10,
@@ -465,6 +486,7 @@
     let lastSpawnTime = 0;
     let spawnTimer = config.baseSpawnRate;
     let specialEnemyActive = false;
+    let currentBossMaxHP = 10; // New variable to track dynamic boss HP
     const keys = {};
 
     let highScores = JSON.parse(localStorage.getItem('geography_scores') || '[]');
@@ -621,7 +643,9 @@
         constructor(level, isSpecial = false, isBoss = false) {
             this.isBoss = isBoss;
             if (isBoss) {
-                this.x = canvas.width / 2; this.y = -60; this.hp = config.bossHP; this.maxHp = config.bossHP;
+                this.x = canvas.width / 2; this.y = -60; 
+                this.hp = currentBossMaxHP; // Use dynamic max HP
+                this.maxHp = currentBossMaxHP;
                 this.radius = 45; this.speed = 1.2; this.lastShotTime = Date.now();
             } else {
                 const side = Math.floor(Math.random() * 4);
@@ -630,7 +654,7 @@
                 else if (side === 2) { this.x = Math.random() * canvas.width; this.y = -40; }
                 else { this.x = Math.random() * canvas.width; this.y = canvas.height + 40; }
                 this.radius = 24; this.hp = 1;
-                const baseSpeed = config.baseStudentSpeed + (level * 0.12);
+                const baseSpeed = config.baseStudentSpeed + (level * 0.15);
                 this.speed = isSpecial ? baseSpeed * 0.7 : baseSpeed;
             }
             this.isSpecial = isSpecial || isBoss;
@@ -690,7 +714,11 @@
     function fireGlobe() {
         if (Date.now() < player.stunUntil) return;
         const now = Date.now();
-        if (now - player.lastAbilityTime < config.abilityCooldown) return;
+        
+        // UPDATED: Dynamic Cooldown Calculation
+        const dynamicCooldown = Math.max(300, 800 - (currentLevel * 20));
+
+        if (now - player.lastAbilityTime < dynamicCooldown) return;
         let sx = 0, sy = 0;
         if (isKeyDown('KeyW', 'w', 'ц')) sy -= 1;
         if (isKeyDown('KeyS', 's', 'ы')) sy += 1;
@@ -719,7 +747,10 @@
         currentLevel++; progressThisLevel = 0; itemsDroppedThisLevel = 0;
         enemies = []; projectiles = []; enemyProjectiles = []; items = [];
         specialEnemyActive = false; player.ultAvailable = true; 
-        spawnTimer = Math.max(config.minSpawnRate, config.baseSpawnRate - (currentLevel * 160));
+        
+        // UPDATED: Spawn rate decreases by 40ms each level
+        spawnTimer = Math.max(config.minSpawnRate, config.baseSpawnRate - (currentLevel * 40));
+        
         const isBossLevel = currentLevel % 5 === 0;
         levelAnnounce.innerText = isBossLevel ? "БОСС: ЛИДЕР КЛАССА" : "НОВЫЙ ГОД БЛИЗКО!";
         levelAnnounce.style.opacity = "1";
@@ -727,10 +758,15 @@
         levelElement.innerText = currentLevel;
         if (isBossLevel) {
             levelTitle.innerText = "УРОВЕНЬ БОССА";
-            scoreContainer.innerHTML = 'Здоровье босса: <span id="score">10</span> / 10';
+            
+            // UPDATED: Boss HP Logic (Base 10 + 5 per encounter)
+            const bossEncounterIndex = Math.floor(currentLevel / 5);
+            currentBossMaxHP = 10 + (bossEncounterIndex - 1) * 5;
+            
+            scoreContainer.innerHTML = `Здоровье босса: <span id="score">${currentBossMaxHP}</span> / ${currentBossMaxHP}`;
         } else {
             levelTitle.innerText = "Уровень: " + currentLevel;
-            scoreContainer.innerHTML = 'Тетради: <span id="score">0</span> / 20';
+            scoreContainer.innerHTML = `Тетради: <span id="score">0</span> / ${TARGET_PER_LEVEL}`;
         }
         obstacles = [];
         const count = 5 + Math.floor(currentLevel * 1.2);
@@ -756,13 +792,21 @@
         player.x = canvas.width/2; player.y = canvas.height/2;
         player.lastAbilityTime = 0; player.ultAvailable = true; player.stunUntil = 0;
         player.invulnerableUntil = 0; player.slowMoUntil = 0;
-        spawnTimer = config.baseSpawnRate; specialEnemyActive = false;
+        
+        spawnTimer = config.baseSpawnRate; // Reset spawn timer
+        specialEnemyActive = false;
         levelTitle.innerText = "Уровень: 1";
-        scoreContainer.innerHTML = 'Тетради: <span id="score">0</span> / 20';
+        scoreContainer.innerHTML = `Тетради: <span id="score">0</span> / ${TARGET_PER_LEVEL}`;
         obstacles = [];
         for(let i = 0; i < 5; i++) obstacles.push(new Obstacle());
         gameActive = true;
-        mainMenu.classList.add('hidden'); gameOverMenu.classList.add('hidden'); uiOverlay.classList.remove('hidden');
+        
+        // Hide all menus, show UI
+        mainMenu.classList.add('hidden'); 
+        gameOverMenu.classList.add('hidden'); 
+        disclaimerMenu.classList.add('hidden'); // Ensure disclaimer is hidden
+        uiOverlay.classList.remove('hidden');
+        
         pointsElement.innerText = 0; progressFill.style.width = '0%'; effectsContainer.innerHTML = '';
         gameLoop();
     }
@@ -827,7 +871,7 @@
                         const boss = enemies.find(en => en.isBoss);
                         const displayHp = boss ? Math.max(0, boss.hp) : 0;
                         document.getElementById('score').innerText = displayHp;
-                        progressFill.style.width = (displayHp/config.bossHP*100)+'%';
+                        progressFill.style.width = (displayHp/currentBossMaxHP*100)+'%';
                     } else {
                         document.getElementById('score').innerText = progressThisLevel;
                         progressFill.style.width = (progressThisLevel/TARGET_PER_LEVEL*100)+'%';
@@ -839,7 +883,13 @@
         enemyProjectiles.forEach((ep, epi) => {
             ep.update(); if (!ep.active) { enemyProjectiles.splice(epi, 1); return; }
             if (now > player.invulnerableUntil && Math.hypot(ep.x-player.x, ep.y-player.y) < ep.radius+player.radius) {
-                player.stunUntil = now + config.stunDuration; ep.active = false;
+                // UPDATED: Boss projectile kills instantly on boss levels
+                if (isBossLevel) {
+                    endGame();
+                } else {
+                    player.stunUntil = now + config.stunDuration; 
+                    ep.active = false;
+                }
             }
         });
         enemies.forEach((e, ei) => {
@@ -847,9 +897,12 @@
             if (!e.knockedOut && now > player.invulnerableUntil && Math.hypot(player.x-e.x, player.y-e.y) < player.radius+e.radius-8) { endGame(); }
         });
         items.forEach((item, ii) => { item.update(); if (!item.active) items.splice(ii, 1); });
+        
+        // Update UI Text for Cooldown
+        const currentCooldown = Math.max(300, 800 - (currentLevel * 15));
         const abilityStatus = document.getElementById('ability-status');
         const ultStatus = document.getElementById('ult-status');
-        if (now - player.lastAbilityTime < config.abilityCooldown) {
+        if (now - player.lastAbilityTime < currentCooldown) {
             abilityStatus.innerText = 'ГЛОБУС: ЗАРЯДКА'; abilityStatus.className = 'font-bold text-gray-400';
         } else {
             abilityStatus.innerText = 'ГЛОБУС: ГОТОВ'; abilityStatus.className = 'font-bold text-blue-600';
@@ -891,8 +944,23 @@
         animationId = requestAnimationFrame(gameLoop); 
     }
 
-    // Buttons
-    document.getElementById('start-btn').onclick = initGame;
+    // Buttons Logic
+    
+    // 1. "Начать игру" opens Disclaimer
+    document.getElementById('pre-start-btn').onclick = () => {
+        mainMenu.classList.add('hidden');
+        disclaimerMenu.classList.remove('hidden');
+    };
+
+    // 2. Disclaimer Buttons
+    document.getElementById('disclaimer-exit').onclick = () => {
+        disclaimerMenu.classList.add('hidden');
+        mainMenu.classList.remove('hidden');
+    };
+    
+    document.getElementById('disclaimer-start').onclick = initGame;
+
+
     document.getElementById('retry-btn').onclick = initGame;
     document.getElementById('controls-btn').onclick = () => { mainMenu.classList.add('hidden'); controlsMenu.classList.remove('hidden'); };
     document.getElementById('results-btn').onclick = () => { mainMenu.classList.add('hidden'); resultsMenu.classList.remove('hidden'); showResults(); };
